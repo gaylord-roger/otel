@@ -1,0 +1,53 @@
+extensions:
+  health_check:
+    endpoint: otel-collector:13133
+  bearertokenauth:
+    token: "<replace_token_here>"
+    
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        auth:
+          authenticator: bearertokenauth
+      http:
+        endpoint: 0.0.0.0:4318
+        auth:
+          authenticator: bearertokenauth
+
+exporters:
+  debug:
+    verbosity: detailed
+  # 1. Logs to Loki
+  otlp_http/loki:
+    endpoint: "http://loki:3100/otlp"
+    tls:
+      insecure: true
+  # 2. Traces to Tempo
+  otlp/tempo:
+    endpoint: "http://tempo:4317"
+    tls:
+      insecure: true
+  # 3. Metrics to Prometheus
+  prometheus:
+    endpoint: otel-collector:8889
+
+processors:
+  batch:
+
+service:
+  extensions: [health_check, bearertokenauth]
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/loki]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
